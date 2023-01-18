@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, 2021, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012, 2022, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -2623,7 +2623,7 @@ public class TreeTableView<S> extends Control {
                         startRow = treeTableView.getRow(e.getChange().getAddedSubList().get(0));
 
                         TreeTablePosition<S, ?> anchor = TreeTableCellBehavior.getAnchor(treeTableView, null);
-                        if (anchor != null) {
+                        if (anchor != null && anchor.getRow() >= startRow) {
                             boolean isAnchorSelected = isSelected(anchor.getRow(), anchor.getTableColumn());
                             if (isAnchorSelected) {
                                 TreeTablePosition<S, ?> newAnchor = new TreeTablePosition<>(treeTableView, anchor.getRow() + shift, anchor.getTableColumn());

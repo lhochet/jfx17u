@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011, 2021, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2011, 2022, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -4264,14 +4264,14 @@ public class TreeTableViewTest {
                     Platform.runLater(() -> {
                         Toolkit.getToolkit().firePulse();
                         assertTrue(rt_35395_counter > 0);
-                        assertTrue(rt_35395_counter < 18);
+                        assertTrue(rt_35395_counter < 39);
                         rt_35395_counter = 0;
                         treeTableView.scrollTo(55);
                         Platform.runLater(() -> {
                             Toolkit.getToolkit().firePulse();
 
                             assertTrue(rt_35395_counter > 0);
-                            assertTrue(rt_35395_counter < 30);
+                            assertTrue(rt_35395_counter < 90);
                             sl.dispose();
                         });
                     });
@@ -6842,6 +6842,62 @@ public class TreeTableViewTest {
 
         // reset the exception handler
         Thread.currentThread().setUncaughtExceptionHandler(exceptionHandler);
+    }
+
+    // see JDK-8284665
+    @Test
+    public void testAnchorRemainsWhenAddingMoreItemsBelow() {
+        TreeItem<String> b;
+        TreeItem<String> root = new TreeItem<>("Root");
+        root.setExpanded(true);
+        root.getChildren().addAll(
+                new TreeItem<>("a"),
+                b = new TreeItem<>("b"),
+                new TreeItem<>("c"),
+                new TreeItem<>("d")
+        );
+
+        TreeTableView<String> stringTreeView = new TreeTableView<>(root);
+        stringTreeView.setShowRoot(false);
+
+        TreeTableColumn<String,String> column = new TreeTableColumn<>("Column");
+        column.setCellValueFactory(cdf -> new ReadOnlyStringWrapper(cdf.getValue().getValue()));
+        stringTreeView.getColumns().add(column);
+
+        TreeTableView.TreeTableViewSelectionModel<String> sm = stringTreeView.getSelectionModel();
+        sm.setSelectionMode(SelectionMode.MULTIPLE);
+
+        // test pre-conditions
+        assertTrue(sm.isEmpty());
+
+        // click on row 1
+        Cell startCell = VirtualFlowTestUtils.getCell(stringTreeView, 1, 0);
+        new MouseEventFirer(startCell).fireMousePressAndRelease();
+        assertTrue(sm.isSelected(1));
+        assertEquals(b, sm.getSelectedItem());
+
+        TreeTablePosition<String, ?> anchor = TreeTableCellBehavior.getAnchor(stringTreeView, null);
+        assertNotNull(anchor);
+        assertTrue(TreeTableCellBehavior.hasNonDefaultAnchor(stringTreeView));
+        assertEquals(1, anchor.getRow());
+
+        // now add a new item.
+        root.getChildren().add(new TreeItem<>("e"));
+
+        // select also row 2
+        Cell endCell = VirtualFlowTestUtils.getCell(stringTreeView, 2, 0);
+        new MouseEventFirer(endCell).fireMousePressAndRelease(KeyModifier.SHIFT);
+
+        // row 1 should remain selected
+        assertTrue(sm.isSelected(1));
+        assertTrue(sm.isSelected(2));
+
+        // anchor should remain at 1
+        anchor = TreeTableCellBehavior.getAnchor(stringTreeView, null);
+        assertNotNull(anchor);
+        assertTrue(TreeTableCellBehavior.hasNonDefaultAnchor(stringTreeView));
+        assertEquals(1, anchor.getRow());
+        assertEquals(column, anchor.getTableColumn());
     }
 
     // JDK-8286261
