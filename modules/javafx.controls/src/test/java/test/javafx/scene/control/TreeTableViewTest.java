@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011, 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2011, 2023, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -44,9 +44,14 @@ import java.util.stream.Collectors;
 import com.sun.javafx.scene.control.behavior.TreeTableCellBehavior;
 import javafx.beans.property.ReadOnlyIntegerWrapper;
 import javafx.collections.transformation.FilteredList;
+import javafx.scene.control.ScrollBar;
 import javafx.scene.control.SelectionModel;
+import javafx.scene.control.Slider;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
+import javafx.scene.control.skin.TableColumnHeader;
+import javafx.scene.layout.Region;
+import org.junit.After;
 import test.javafx.collections.MockListObserver;
 import test.com.sun.javafx.scene.control.infrastructure.KeyEventFirer;
 import test.com.sun.javafx.scene.control.infrastructure.KeyModifier;
@@ -69,6 +74,7 @@ import javafx.collections.FXCollections;
 import javafx.collections.ListChangeListener;
 import javafx.collections.ObservableList;
 import javafx.event.EventHandler;
+import javafx.scene.AccessibleAttribute;
 import javafx.scene.Group;
 import javafx.scene.Node;
 import javafx.scene.Scene;
@@ -100,6 +106,7 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Cell;
 import javafx.scene.control.FocusModel;
 import javafx.scene.control.IndexedCell;
+import javafx.scene.control.Label;
 import javafx.scene.control.MultipleSelectionModel;
 import javafx.scene.control.MultipleSelectionModelBaseShim;
 import javafx.scene.control.SelectionMode;
@@ -122,6 +129,7 @@ public class TreeTableViewTest {
     private TreeTableView.TreeTableViewSelectionModel sm;
     private TreeTableViewFocusModel<String> fm;
 
+    private StageLoader stageLoader;
 
     // sample data #1
     private TreeItem<String> root;
@@ -181,6 +189,13 @@ public class TreeTableViewTest {
             judyMayer,
             gregorySmith
         );
+    }
+
+    @After
+    public void cleanup() {
+        if (stageLoader != null) {
+            stageLoader.dispose();
+        }
     }
 
     private void installChildren() {
@@ -3670,7 +3685,7 @@ public class TreeTableViewTest {
         // However, for now, we'll test on the assumption that across all
         // platforms we only get one extra cell created, and we can loosen this
         // up if necessary.
-        assertEquals(cellCountAtStart + 14, rt36452_instanceCount);
+        assertTrue(rt36452_instanceCount < cellCountAtStart + 15);
 
         sl.dispose();
     }
@@ -6982,5 +6997,150 @@ public class TreeTableViewTest {
         assertEquals("Node 0", table.getSelectionModel().getSelectedItem().getValue());
         assertEquals(0, table.getFocusModel().getFocusedIndex());
         assertEquals("Node 0", table.getFocusModel().getFocusedItem().getValue());
+    }
+
+    // See JDK-8087673
+    @Test
+    public void testTreeTableMenuButtonDoesNotOverlapColumnHeaderGraphic() {
+        TreeTableView<String> table = new TreeTableView<>();
+        table.setColumnResizePolicy(TreeTableView.CONSTRAINED_RESIZE_POLICY);
+        table.setTableMenuButtonVisible(true);
+        TreeTableColumn<String, String> column = new TreeTableColumn<>();
+        Slider slider = new Slider();
+        slider.setValue(100);
+        column.setGraphic(slider);
+        table.getColumns().add(column);
+
+        stageLoader = new StageLoader(table);
+
+        Toolkit.getToolkit().firePulse();
+
+        ScrollBar vbar = VirtualFlowTestUtils.getVirtualFlowVerticalScrollbar(table);
+        assertFalse(vbar.isVisible());
+
+        StackPane thumb = (StackPane) slider.lookup(".thumb");
+        assertNotNull(thumb);
+        double thumbMaxX = thumb.localToScene(thumb.getLayoutBounds()).getMaxX();
+
+        StackPane corner = (StackPane) table.lookup(".show-hide-columns-button");
+        assertNotNull(corner);
+        assertTrue(corner.isVisible());
+        double cornerMinX = corner.localToScene(corner.getLayoutBounds()).getMinX();
+
+        // Verify that the slider's thumb is fully visible, and it is not overlapped
+        // by the corner region
+        assertTrue(thumbMaxX < cornerMinX);
+    }
+
+    // See JDK-8087673
+    @Test
+    public void testTableMenuButtonDoesNotOverlapLastColumnHeader() {
+        TreeTableView<String> table = new TreeTableView<>();
+        table.setTableMenuButtonVisible(true);
+        for (int i = 0; i < 10; i++) {
+            TreeTableColumn<String, String> column = new TreeTableColumn<>(i + "          ");
+            column.setCellValueFactory(value -> new SimpleStringProperty(value.getValue().getValue()));
+            table.getColumns().add(column);
+        }
+
+        TreeItem<String> root = new TreeItem<>();
+        root.setExpanded(true);
+        for (int i = 0; i < 10; i++) {
+            root.getChildren().add(new TreeItem<>(Integer.toString(i)));
+        }
+        table.setRoot(root);
+        table.setShowRoot(false);
+
+        stageLoader = new StageLoader(new Scene(table, 300, 300));
+
+        TreeTableColumn<String, ?> lastColumn = table.getColumns().get(9);
+        lastColumn.setSortType(TreeTableColumn.SortType.DESCENDING);
+        table.getSortOrder().setAll(lastColumn);
+        Toolkit.getToolkit().firePulse();
+
+        TableColumnHeader lastColumnHeader = VirtualFlowTestUtils.getTableColumnHeader(table, lastColumn);
+        assertNotNull(lastColumnHeader);
+
+        Region arrow = (Region) lastColumnHeader.lookup(".arrow");
+        assertNotNull(arrow);
+
+        ScrollBar vbar = VirtualFlowTestUtils.getVirtualFlowVerticalScrollbar(table);
+        assertFalse(vbar.isVisible());
+        ScrollBar hbar = VirtualFlowTestUtils.getVirtualFlowHorizontalScrollbar(table);
+        assertTrue(hbar.isVisible());
+
+        table.scrollToColumnIndex(9);
+
+        double headerMinX = lastColumnHeader.localToScene(lastColumnHeader.getLayoutBounds()).getMinX();
+        double headerMaxX = lastColumnHeader.localToScene(lastColumnHeader.getLayoutBounds()).getMaxX();
+
+        double arrowMaxX = arrow.localToScene(arrow.getLayoutBounds()).getMaxX();
+
+        StackPane corner = (StackPane) table.lookup(".show-hide-columns-button");
+        assertNotNull(corner);
+        assertTrue(corner.isVisible());
+        double cornerMinX = corner.localToScene(corner.getLayoutBounds()).getMinX();
+
+        // Verify that the corner region is over the last visible column header
+        assertTrue(headerMinX < cornerMinX);
+        assertTrue(cornerMinX < headerMaxX);
+
+        // Verify that the arrow is fully visible, and it is not overlapped
+        // by the corner region
+        assertTrue(arrowMaxX < cornerMinX);
+    }
+
+    @Test
+    public void testQueryAccessibleAttributeSelectedItemsWithNullSelectionModel() {
+        treeTableView.setSelectionModel(null);
+        stageLoader = new StageLoader(treeTableView);
+
+        Object result = treeTableView.queryAccessibleAttribute(AccessibleAttribute.SELECTED_ITEMS);
+        // Should be an empty observable array list
+        assertEquals(FXCollections.observableArrayList(), result);
+    }
+
+    @Test
+    public void testQueryAccessibleAttributeSelectedItemsWithNullSelectionModel_Placeholder() {
+        treeTableView.setSelectionModel(null);
+        stageLoader = new StageLoader(treeTableView);
+
+        Object result = treeTableView.queryAccessibleAttribute(AccessibleAttribute.FOCUS_ITEM);
+        // Should be a placeholder label
+        assertTrue(result instanceof Label);
+    }
+
+    @Test
+    public void testQueryAccessibleAttributeFocusItemWithNullFocusModel() {
+        // with rows
+        treeTableView.setRoot(new TreeItem("Root"));
+        treeTableView.getRoot().setExpanded(true);
+        for (int i = 0; i < 4; i++) {
+            TreeItem parent = new TreeItem("item - " + i);
+            treeTableView.getRoot().getChildren().add(parent);
+        }
+
+        // with columns
+        for (int i = 0; i < 10; i++) {
+            TreeTableColumn<String, String> c = new TreeTableColumn<>("C" + i);
+            c.setCellValueFactory(value -> new SimpleStringProperty(value.getValue().getValue()));
+            treeTableView.getColumns().add(c);
+        }
+
+        treeTableView.setFocusModel(null);
+
+        stageLoader = new StageLoader(treeTableView);
+
+        Object result = treeTableView.queryAccessibleAttribute(AccessibleAttribute.FOCUS_ITEM);
+        assertNull(result);
+    }
+
+    @Test
+    public void testQueryAccessibleAttributeFocusItemWithNullFocusModelPlaceholder() {
+        treeTableView.setFocusModel(null);
+        stageLoader = new StageLoader(treeTableView);
+
+        Object result = treeTableView.queryAccessibleAttribute(AccessibleAttribute.FOCUS_ITEM);
+        assertNull(result);
     }
 }

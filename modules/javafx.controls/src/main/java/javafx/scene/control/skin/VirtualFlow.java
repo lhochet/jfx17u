@@ -2072,7 +2072,7 @@ public class VirtualFlow<T extends IndexedCell> extends Region {
      */
     void addLeadingCells(int currentIndex, double startOffset) {
         // The offset will keep track of the distance from the top of the
-        // viewport to the top of the current index. We will increment it
+        // viewport to the top of the current index. We will decrement it
         // as we lay out leading cells.
         double offset = startOffset;
         // The index is the absolute index of the cell being laid out
@@ -2365,7 +2365,7 @@ public class VirtualFlow<T extends IndexedCell> extends Region {
         // Bring the clipView.clipX back to 0 if control is vertical or
         // the hbar isn't visible (fix for RT-11666)
         if (isVertical()) {
-            if (hbar.isVisible()) {
+            if (needBreadthBar) {
                 clipView.setClipX(hbar.getValue());
             } else {
                 // all cells are now less than the width of the flow,
@@ -2877,6 +2877,10 @@ public class VirtualFlow<T extends IndexedCell> extends Region {
         double p = com.sun.javafx.util.Utils.clamp(0, position, 1);
         double bound = 0d;
         double estSize = estimatedSize / getCellCount();
+        double maxOff = estimatedSize - getViewportLength();
+        if ((maxOff > 0) && (absoluteOffset > maxOff)) {
+            return maxOff - absoluteOffset;
+        }
 
         for (int i = 0; i < getCellCount(); i++) {
             double h = getCellSize(i);
