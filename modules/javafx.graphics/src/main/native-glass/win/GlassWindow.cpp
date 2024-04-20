@@ -392,9 +392,6 @@ GlassWindow::GlassWindow(jobject jrefThis, bool isTransparent, bool isDecorated,
                     (HOOKPROC)GlassWindow::CBTFilter,
                     0, GlassApplication::GetMainThreadId());
     }
-    if (isChild) {
-        GlassApplication::InstallMouseLLHook();
-    }
 }
 
 GlassWindow::~GlassWindow()
@@ -405,10 +402,6 @@ GlassWindow::~GlassWindow()
 
     if (m_grefThis) {
         GetEnv()->DeleteGlobalRef(m_grefThis);
-    }
-
-    if (IsChild()) {
-        GlassApplication::UninstallMouseLLHook();
     }
 
     if (--GlassWindow::sm_instanceCounter == 0) {
