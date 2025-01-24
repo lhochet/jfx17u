@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2024, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -23,14 +23,18 @@
  * questions.
  */
 
-#import "AccessibleBase.h"
-#import <AppKit/AppKit.h>
+#pragma once
 
-@interface ButtonAccessibility : AccessibleBase <NSAccessibilityButton> {
+#include <WebCore/HistoryItem.h>
+#include <WebCore/PlatformJavaClasses.h>
 
+namespace WebCore {
+class HistoryItemClientJava final : public HistoryItemClient {
+public:
+    static HistoryItemClientJava& singleton();
+private:
+    HistoryItemClientJava() = default;
+    void historyItemChanged(const WebCore::HistoryItem&) final;
 };
-- (NSAccessibilityRole)accessibilityRole;
-- (NSString *)accessibilityLabel;
-- (BOOL)accessibilityPerformPress;
-- (NSRect)accessibilityFrame;
-@end
+} // namespace WebCore
+
